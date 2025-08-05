@@ -42,7 +42,7 @@ public class VariableEntity {
   @Lob
   private String value;
 
-  @Column(name = "VALUETEXT_")
+  @Column(name = "VALUETEXT_", columnDefinition = "TEXT")
   private String valueText;
 
   @Column(name = "PROCESS_INSTANCE_KEY_")
