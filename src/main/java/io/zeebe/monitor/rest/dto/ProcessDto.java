@@ -96,4 +96,8 @@ public class ProcessDto {
   public String getDeploymentTime() {
     return deploymentTime;
   }
+
+  public void setDeploymentTime(final String deploymentTime) {
+    this.deploymentTime = deploymentTime;
+  }
 }

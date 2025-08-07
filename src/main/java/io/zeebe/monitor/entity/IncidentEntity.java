@@ -52,11 +52,34 @@ public class IncidentEntity {
   @Lob
   private String errorMessage;
 
+  @Column(name = "ERROR_MSG_TEXT_", length = Length.LONG32)
+  private String errorMessageText;
+
   @Column(name = "CREATED_")
   private long created;
 
   @Column(name = "RESOLVED_")
   private Long resolved;
+
+  // Default constructor for JPA
+  public IncidentEntity() {}
+
+  // Constructor for custom query without LOB field
+  public IncidentEntity(long key, String bpmnProcessId, long processDefinitionKey, 
+                       long processInstanceKey, long elementInstanceKey, long jobKey, 
+                       String errorType, String errorMessageText, long created, Long resolved) {
+    this.key = key;
+    this.bpmnProcessId = bpmnProcessId;
+    this.processDefinitionKey = processDefinitionKey;
+    this.processInstanceKey = processInstanceKey;
+    this.elementInstanceKey = elementInstanceKey;
+    this.jobKey = jobKey;
+    this.errorType = errorType;
+    this.errorMessageText = errorMessageText;
+    this.created = created;
+    this.resolved = resolved;
+    // errorMessage (LOB) is intentionally not set - will be loaded lazily if needed
+  }
 
   public String getErrorType() {
     return errorType;
@@ -68,11 +91,58 @@ public class IncidentEntity {
   }
 
   public String getErrorMessage() {
+    return getSafeErrorMessage();
+  }
+
+  /**
+   * Safely gets the error message using only the TEXT field to avoid LOB transaction issues
+   */
+  public String getSafeErrorMessage() {
+    // First try the TEXT field (safer and already loaded)
+    if (this.errorMessageText != null && !this.errorMessageText.trim().isEmpty()) {
+      return this.errorMessageText;
+    }
+    
+    // Then try LOB field if it was loaded
+    if (this.errorMessage != null) {
+      try {
+        return this.errorMessage;
+      } catch (Exception e) {
+        // LOB access failed
+      }
+    }
+    
+    // If both are empty/failed, return unavailable message
+    return "Error message unavailable";
+  }
+
+  /**
+   * Direct access to the LOB field without safety checks
+   */
+  public String getErrorMessageLob() {
     return errorMessage;
+  }
+
+  /**
+   * Check if we might need to load the LOB field
+   * Returns true if TEXT field is empty but we haven't tried to load LOB yet
+   */
+  public boolean shouldLoadLobField() {
+    return (this.errorMessageText == null || this.errorMessageText.trim().isEmpty()) 
+           && this.errorMessage == null;
   }
 
   public IncidentEntity setErrorMessage(final String errorMessage) {
     this.errorMessage = errorMessage;
+    return this;
+  }
+
+  public String getErrorMessageText() {
+    return errorMessageText;
+  }
+
+  public IncidentEntity setErrorMessageText(final String errorMessageText) {
+    this.errorMessageText = errorMessageText;
     return this;
   }
 

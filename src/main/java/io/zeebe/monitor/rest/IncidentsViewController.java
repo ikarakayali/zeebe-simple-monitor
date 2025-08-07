@@ -67,7 +67,11 @@ public class IncidentsViewController extends AbstractViewController {
     dto.setProcessInstanceKey(incident.getProcessInstanceKey());
 
     dto.setErrorType(incident.getErrorType());
-    dto.setErrorMessage(incident.getErrorMessage());
+    if (incident.getErrorMessageText() != null) {
+      dto.setErrorMessage(incident.getErrorMessageText());
+    } else {
+      dto.setErrorMessage(incident.getErrorMessage());
+    }
 
     final boolean isResolved = incident.getResolved() != null && incident.getResolved() > 0;
 

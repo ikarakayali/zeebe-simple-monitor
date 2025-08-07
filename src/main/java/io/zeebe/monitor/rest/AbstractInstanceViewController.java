@@ -30,6 +30,7 @@ import java.util.stream.StreamSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 public abstract class AbstractInstanceViewController extends AbstractViewController {
 
@@ -40,6 +41,7 @@ public abstract class AbstractInstanceViewController extends AbstractViewControl
   @Autowired protected ProcessInstanceRepository processInstanceRepository;
   @Autowired protected ElementInstanceRepository elementInstanceRepository;
   @Autowired protected IncidentRepository incidentRepository;
+  @Autowired private JdbcTemplate jdbcTemplate;
 
   protected void initializeProcessInstanceDto(
       long key, Map<String, Object> model, Pageable pageable) {
@@ -86,9 +88,80 @@ public abstract class AbstractInstanceViewController extends AbstractViewControl
   }
 
   private List<IncidentEntity> loadIncidents(ProcessInstanceEntity instance) {
-    return StreamSupport.stream(
-            incidentRepository.findByProcessInstanceKey(instance.getKey()).spliterator(), false)
-        .collect(Collectors.toList());
+    try {
+      // Step 1: Get incidents without LOB fields (safe and fast)
+      List<IncidentEntity> incidents = StreamSupport.stream(
+              incidentRepository.findByProcessInstanceKeyWithoutLob(instance.getKey()).spliterator(), false)
+          .collect(Collectors.toList());
+      
+      // Step 2: For incidents with empty TEXT field, try to get LOB using simple approach
+      incidents.parallelStream().forEach(incident -> {
+        if (incident.shouldLoadLobField()) {
+          loadLobSimply(incident);
+        }
+      });
+      
+      return incidents;
+    } catch (Exception e) {
+      // If even the safe query fails, return empty list
+      return new ArrayList<>();
+    }
+  }
+
+  /**
+   * Simple LOB loading approach - handles PostgreSQL LOB storage
+   */
+  private void loadLobSimply(IncidentEntity incident) {
+    try {
+      // First try: Check if ERROR_MSG_ is stored as TEXT directly
+      String lobValue = jdbcTemplate.queryForObject(
+          "SELECT ERROR_MSG_ FROM INCIDENT WHERE KEY_ = ?", 
+          String.class, 
+          incident.getKey()
+      );
+      
+      if (lobValue != null && !lobValue.trim().isEmpty()) {
+          // Get the actual LOB content from pg_largeobject
+          String lobContent = jdbcTemplate.queryForObject(
+              "SELECT data FROM pg_largeobject WHERE loid = ? ORDER BY pageno", 
+              String.class, 
+              Long.parseLong(lobValue)
+          );
+          
+          if (lobContent != null && !lobContent.trim().isEmpty()) {
+            // PostgreSQL returns hex-encoded data, decode it
+            String decodedContent = decodeHexString(lobContent);
+            if (decodedContent != null && !decodedContent.trim().isEmpty()) {
+              incident.setErrorMessage(decodedContent);
+            }
+          }
+        }
+        
+      } catch (Exception lobException) {
+        // Both approaches failed, continue silently with TEXT field
+      }
+    
+  }
+
+  /**
+   * Decode hex-encoded string from PostgreSQL LOB data
+   */
+  private String decodeHexString(String hexString) {
+    try {
+      // Remove \x prefix if present
+      String hex = hexString.startsWith("\\x") ? hexString.substring(2) : hexString;
+      
+      // Convert hex to bytes
+      byte[] bytes = new byte[hex.length() / 2];
+      for (int i = 0; i < hex.length(); i += 2) {
+        bytes[i / 2] = (byte) Integer.parseInt(hex.substring(i, i + 2), 16);
+      }
+      
+      // Convert bytes to UTF-8 string
+      return new String(bytes, "UTF-8");
+    } catch (Exception e) {
+      return null;
+    }
   }
 
   private ProcessInstanceDto fillBpmnDetailsIntoDto(ProcessInstanceEntity instance) {

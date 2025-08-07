@@ -35,7 +35,7 @@ public class ProcessAndElementProtobufImporter {
     entity.setKey(record.getProcessDefinitionKey());
     entity.setBpmnProcessId(record.getBpmnProcessId());
     entity.setVersion(record.getVersion());
-    entity.setResource(record.getResource().toStringUtf8());
+    entity.setResourcetext(record.getResource().toStringUtf8());
     entity.setTimestamp(record.getMetadata().getTimestamp());
     processRepository.save(entity);
   }

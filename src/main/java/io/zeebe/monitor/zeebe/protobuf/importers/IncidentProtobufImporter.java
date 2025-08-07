@@ -34,7 +34,8 @@ public class IncidentProtobufImporter {
                   newEntity.setElementInstanceKey(record.getElementInstanceKey());
                   newEntity.setJobKey(record.getJobKey());
                   newEntity.setErrorType(record.getErrorType());
-                  newEntity.setErrorMessage(record.getErrorMessage());
+                  //newEntity.setErrorMessage(record.getErrorMessage());
+                  newEntity.setErrorMessageText(record.getErrorMessage());
                   return newEntity;
                 });
 
